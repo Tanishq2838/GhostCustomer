@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+
+@layer base {
+  :root {
+    --background: 222 47% 6%;
+    --foreground: 210 20% 90%;
+
+    --card: 222 40% 8%;
+    --card-foreground: 210 20% 90%;
+
+    --popover: 222 40% 8%;
+    --popover-foreground: 210 20% 90%;
+
+    --primary: 230 70% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 215 20% 14%;
+    --secondary-foreground: 210 20% 80%;
+
+    --muted: 215 20% 12%;
+    --muted-foreground: 215 15% 50%;
+
+    --accent: 230 60% 50%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 215 20% 16%;
+    --input: 215 20% 16%;
+    --ring: 230 70% 60%;
+
+    --radius: 0.25rem;
+
+    /* Custom tokens */
+    --emerald: 160 84% 39%;
+    --emerald-foreground: 0 0% 100%;
+    --amber: 38 92% 50%;
+    --amber-foreground: 0 0% 0%;
+    --rose: 347 77% 50%;
+    --rose-foreground: 0 0% 100%;
+
+    --surface-elevated: 222 35% 10%;
+    --surface-sunken: 222 47% 5%;
+
+    --sidebar-background: 222 47% 5%;
+    --sidebar-foreground: 210 20% 80%;
+    --sidebar-primary: 230 70% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 230 60% 50%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 215 20% 14%;
+    --sidebar-ring: 230 70% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}
+
+@layer utilities {
+  .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .font-sans {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 hsl(230 70% 60% / 0.4); }
+  50% { box-shadow: 0 0 0 8px hsl(230 70% 60% / 0); }
+}
+
+@keyframes count-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.animate-count-up {
+  animation: count-up 0.4s ease-out forwards;
+}
