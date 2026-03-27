@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(taskkill /F /IM python.exe)",
+      "Bash(find /d/GhostCustomer/Backend -name \"*.pyc\" -delete)",
+      "Bash(find /d/GhostCustomer/Backend -name \"__pycache__\" -type d -exec rm -rf {} +)"
+    ]
+  }
+}
