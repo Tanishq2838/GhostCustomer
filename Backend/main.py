@@ -32,15 +32,28 @@ def generate_ghost_verdict(stats: dict, p_price: float, c_price: float) -> str:
     conv   = float(stats["conversion_rate"].strip("%"))
     delay  = float(stats["delay_rate"].strip("%"))
     reject = float(stats["rejection_rate"].strip("%"))
+    is_expensive = p_price > c_price * 1.4
 
-    if conv > 50:
-        return "MARKET DOMINANCE: Your value-to-price ratio is elite. You have room to increase price by 10% without losing the lead."
-    elif delay > 40:
-        return f"URGENCY GAP: Customers like the product but aren't buying now. Drop price to ₹{p_price * 0.9:.0f} or add a limited-time offer to convert the Ghost (Delay) segment."
-    elif p_price > c_price * 1.5 and reject > 30:
-        return "PREMIUM TRAP: You are significantly more expensive than the market. Unless you raise Feature Strength above 0.8, conversion will stagnate."
-    else:
-        return "STAGNANT ZONE: Your product is 'fine' but forgettable. Increase Feature Strength or lower Risk Perception to move the needle."
+    # Priority order: best → worst
+    if conv >= 60:
+        return f"MARKET DOMINANCE: Exceptional product-market fit. {conv:.0f}% conversion is elite. You have room to test a 10–15% price increase — demand is inelastic here."
+
+    if conv >= 40 and delay < 25:
+        return f"STRONG TRACTION: {conv:.0f}% conversion with low hesitation. Focus now on scaling reach — the product is working. Consider a premium tier to capture willingness-to-pay upside."
+
+    if delay > conv and delay >= 35:
+        return f"URGENCY GAP: {delay:.0f}% of customers want the product but won't commit. Price isn't the main barrier — urgency is. Try a limited-time offer, a waitlist, or a usage-based free trial. Target price: ₹{p_price * 0.88:.0f}."
+
+    if reject >= 55:
+        return f"CRITICAL REJECTION: {reject:.0f}% hard rejections signal a fundamental mismatch — either price is too high relative to perceived value, or the wrong audience is being reached. Reassess positioning before scaling spend."
+
+    if is_expensive and reject >= 30:
+        return f"PREMIUM TRAP: You're priced {((p_price / c_price - 1) * 100):.0f}% above the market average. Customers are defecting to cheaper alternatives. Either justify the premium with a stronger value story or price closer to ₹{c_price * 1.1:.0f}."
+
+    if conv < 20 and reject > 40:
+        return "MARKET MISMATCH: Low conversion AND high rejection together suggest the value proposition isn't landing. This is a messaging or positioning problem, not a price problem. Don't discount — reframe."
+
+    return f"BALANCED MARKET: Conversion at {conv:.0f}% is reasonable but not dominant. The segment mix is split. Run elasticity analysis to find the price point that breaks the DELAY segment toward BUY."
 
 
 def run_monte_carlo(req, engine: GhostEngine, crowd_base: list[dict], iterations: int = 50) -> tuple[float, list[float]]:
@@ -167,7 +180,7 @@ async def simulate(req: MarketSimRequest):
     mean_conv, conf_interval = run_monte_carlo(req, engine_for_mc, crowd)
 
     # Projected market numbers (only when market_size provided)
-    projected: dict = {}
+    projected: dict | None = None
     if req.market_size > 0:
         conv_frac = buys / req.agent_count
         proj_customers = round(conv_frac * req.market_size)

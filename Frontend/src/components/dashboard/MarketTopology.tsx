@@ -292,7 +292,7 @@ export function MarketTopology({
         ctx.stroke();
       }
 
-      if (closest !== hoveredAgent) setHoveredAgent(closest);
+      if (closest?.id !== hoveredAgent?.id) setHoveredAgent(closest);
       requestRef.current = requestAnimationFrame(animate);
     };
 

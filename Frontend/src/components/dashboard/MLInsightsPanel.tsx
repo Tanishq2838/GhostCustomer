@@ -4,6 +4,9 @@ import { Brain, TrendingUp, TrendingDown, Minus } from "lucide-react";
 
 const API = "http://localhost:8000";
 
+// Module-level cache — ML model never changes during a session, no need to refetch
+let _cachedMLStatus: MLStatus | null = null;
+
 const FEATURE_LABELS: Record<string, string> = {
   value:              "Perceived Value",
   urgency:            "Customer Urgency",
@@ -34,9 +37,13 @@ export function MLInsightsPanel({ engineMode }: MLInsightsPanelProps) {
   const [loading, setLoading]   = useState(false);
 
   useEffect(() => {
+    if (_cachedMLStatus) {
+      setMLStatus(_cachedMLStatus);
+      return;
+    }
     setLoading(true);
     axios.get(`${API}/ml-status`)
-      .then(res => setMLStatus(res.data))
+      .then(res => { _cachedMLStatus = res.data; setMLStatus(res.data); })
       .catch(() => setMLStatus(null))
       .finally(() => setLoading(false));
   }, []);
