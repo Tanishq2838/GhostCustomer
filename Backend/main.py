@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from engine import GhostEngine, GhostMLEngine
 from generator import generate_synthetic_crowd
-from researcher import MarketResearcher, extract_market_json
+from researcher import MarketResearcher, extract_market_json, AgentResearcher
 from dotenv import load_dotenv
 import numpy as np
 import os
@@ -249,7 +249,8 @@ async def ml_status():
 # /fetch-market-data
 # ---------------------------------------------------------------------------
 
-researcher = MarketResearcher()
+researcher       = MarketResearcher()
+agent_researcher = AgentResearcher()
 
 class ResearchRequest(BaseModel):
     product_name: str
@@ -257,16 +258,16 @@ class ResearchRequest(BaseModel):
 @app.post("/fetch-market-data")
 async def fetch_market_data(req: ResearchRequest):
     try:
-        raw     = researcher.fetch_competitor_intel(req.product_name)
-        data    = extract_market_json(raw, req.product_name)
-        data["source_snippet"] = raw[:200] + "..."
-        data["success"]        = True
+        data = agent_researcher.run(req.product_name)
+        data["success"] = True
         return data
-    except Exception:
+    except Exception as e:
         return {
             "comp_price": 500.0, "comp_strength": 0.5,
             "competitors": [], "success": False,
             "source_snippet": "Market research unavailable — using baseline.",
+            "trace": [{"type": "ERROR", "message": str(e)}],
+            "market_summary": "", "pricing_insight": "",
         }
 
 

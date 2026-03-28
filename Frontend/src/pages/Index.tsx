@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import axios from "axios";
 import { ResearchTrace } from "@/components/dashboard/ResearchTrace";
 import { ScenarioComparison } from "@/components/dashboard/ScenarioComparison";
@@ -26,6 +26,7 @@ import type {
   SegmentStats,
   ProjectedNumbers,
   DecisionDrivers,
+  AgentTraceEvent,
 } from "@/types/simulation";
 import { parsePercentage } from "@/types/simulation";
 
@@ -78,7 +79,9 @@ export default function Index() {
 
   const [isFetchingMarket, setIsFetchingMarket] = useState(false);
   const [mcHint, setMcHint] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [competitorsFound, setCompetitorsFound] = useState<any[]>([]);
+  const [agentTrace, setAgentTrace] = useState<AgentTraceEvent[]>([]);
 
   const handleLiveUpdate = (updates: Partial<SimulationPayload>) => {
     setLiveValues(prev => ({ ...prev, ...updates }));
@@ -93,6 +96,10 @@ export default function Index() {
   const handleSimulate = async (payload: SimulationPayload) => {
     setIsLoading(true);
     setActiveTab("simulation");
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      if (scrollRef.current) scrollRef.current.scrollTop = 0;
+    }, 50);
     try {
       const { data } = await axios.post<SimulationResponse>(`${API}/simulate-market`, payload);
 
@@ -138,12 +145,13 @@ export default function Index() {
   );
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex h-screen bg-background">
       <ControlPanel
         onSimulate={handleSimulate}
         onLiveUpdate={handleLiveUpdate}
         onFetchingChange={setIsFetchingMarket}
         onCompetitorsFound={setCompetitorsFound}
+        onTraceReceived={setAgentTrace}
         isLoading={isLoading}
       />
 
@@ -233,7 +241,7 @@ export default function Index() {
         </div>
 
         {/* ── Tab Content ── */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6">
 
           {/* ════ TAB 1: SIMULATION ════ */}
           {activeTab === "simulation" && (
@@ -398,7 +406,7 @@ export default function Index() {
           {/* ════ TAB 3: INTELLIGENCE ════ */}
           {activeTab === "intelligence" && (
             <>
-              <ResearchTrace isFetching={isFetchingMarket} productName="" />
+              <ResearchTrace isFetching={isFetchingMarket} productName="" agentTrace={agentTrace} />
               <CompetitorInsight competitors={competitorsFound} onClose={() => setCompetitorsFound([])} />
               <InsightEngine kpis={kpis} />
               <DecisionExplainer drivers={decisionDrivers} engineMode={engineMode} />

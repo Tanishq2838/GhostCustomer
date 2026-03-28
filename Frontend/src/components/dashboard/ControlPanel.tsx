@@ -15,6 +15,7 @@ interface ControlPanelProps {
   onLiveUpdate?: (values: Partial<SimulationPayload>) => void;
   onFetchingChange?: (isFetching: boolean) => void;
   onCompetitorsFound?: (competitors: any[]) => void;
+  onTraceReceived?: (trace: any[]) => void;
   isLoading: boolean;
 }
 
@@ -32,6 +33,7 @@ export function ControlPanel({
   onLiveUpdate,
   onFetchingChange,
   onCompetitorsFound,
+  onTraceReceived,
   isLoading,
 }: ControlPanelProps) {
   const [productPrice, setProductPrice] = useState(500);
@@ -87,6 +89,7 @@ export function ControlPanel({
       setCompPrice(res.data.comp_price);
       setCompStrength(res.data.comp_strength);
       onCompetitorsFound?.(res.data.competitors || []);
+      onTraceReceived?.(res.data.trace || []);
       triggerLiveUpdate({
         comp_price: res.data.comp_price,
         comp_strength: res.data.comp_strength,
@@ -137,7 +140,10 @@ export function ControlPanel({
     "text-rose-400";
 
   return (
-    <aside className="w-80 min-h-screen border-r border-border bg-surface-sunken p-5 flex flex-col gap-5 shrink-0 overflow-y-auto">
+    <aside
+      className="w-80 min-h-screen bg-background p-5 flex flex-col gap-5 shrink-0 overflow-y-auto"
+      style={{ scrollbarWidth: "none", borderRight: "4px solid #1e293b" }}
+    >
       {/* Header */}
       <div className="flex items-center gap-2">
         <div className="w-2 h-2 rounded-full bg-emerald animate-pulse" />

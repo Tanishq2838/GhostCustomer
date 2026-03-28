@@ -190,3 +190,8 @@ export interface OptimizationResponse {
   optimal_profit_price: number;
   max_profit: number;
 }
+
+export interface AgentTraceEvent {
+  type: "INIT" | "PLAN" | "THINK" | "SEARCH" | "RESULTS" | "SYNTHESIZE" | "COMPLETE" | "ERROR" | "WARN" | "LIMIT" | "FALLBACK";
+  message: string;
+}
