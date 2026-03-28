@@ -47,7 +47,8 @@ export function ControlPanel({
   // Stage & dimension state
   const [stage, setStage]   = useState<ProductStage>("pre_launch");
   const [scores, setScores] = useState<Record<string, number>>(defaultScores("pre_launch"));
-  const [hintKey, setHintKey] = useState<string | null>(null);
+  const [hintKey, setHintKey]       = useState<string | null>(null);
+  const [segHintKey, setSegHintKey] = useState<string | null>(null);
 
   const perceivedValue = computePerceivedValue(stage, scores);
 
@@ -319,9 +320,23 @@ export function ControlPanel({
 
         <div className="space-y-2">
           <label className="text-xs font-mono text-muted-foreground uppercase tracking-wider flex justify-between">
-            Competitor Strength
+            <div className="flex items-center gap-1.5">
+              Competitor Strength
+              <button
+                onMouseEnter={() => setHintKey("comp_strength")}
+                onMouseLeave={() => setHintKey(null)}
+                className="text-slate-600 hover:text-slate-400 transition-colors"
+              >
+                <Info className="w-2.5 h-2.5" />
+              </button>
+            </div>
             <span className="text-foreground font-semibold">{compStrength.toFixed(1)}</span>
           </label>
+          {hintKey === "comp_strength" && (
+            <p className="text-[9px] font-mono text-slate-500 italic leading-relaxed">
+              How formidable the competitor is overall — combines brand reputation, product quality, and market presence. High strength pulls agents away from your product even if your price is competitive.
+            </p>
+          )}
           <Slider
             min={0.1} max={1.0} step={0.1}
             value={[compStrength]}
@@ -334,9 +349,23 @@ export function ControlPanel({
       {/* ── Market Size ── */}
       <div className="space-y-1.5">
         <label className="text-xs font-mono text-muted-foreground uppercase tracking-wider flex justify-between">
-          Market Size (TAM)
+          <div className="flex items-center gap-1.5">
+            Market Size (TAM)
+            <button
+              onMouseEnter={() => setHintKey("market_size")}
+              onMouseLeave={() => setHintKey(null)}
+              className="text-slate-600 hover:text-slate-400 transition-colors"
+            >
+              <Info className="w-2.5 h-2.5" />
+            </button>
+          </div>
           {marketSize > 0 && <span className="text-foreground font-semibold">{marketSize.toLocaleString()}</span>}
         </label>
+        {hintKey === "market_size" && (
+          <p className="text-[9px] font-mono text-slate-500 italic leading-relaxed">
+            Total Addressable Market — the full pool of potential customers. Used to project real-world revenue and customer count from your simulation conversion rate.
+          </p>
+        )}
         <Input
           type="number"
           placeholder="e.g. 10000 (optional)"
@@ -376,12 +405,32 @@ export function ControlPanel({
             price_hunter:   "Price Hunter",
             skeptic:        "Skeptic",
           };
+          const hints: Record<keyof SegmentWeights, string> = {
+            early_adopter:  "High urgency, high budget — excited to try new things before the crowd.",
+            premium_seeker: "Willing to pay more for quality — brand and prestige matter most.",
+            price_hunter:   "Budget-constrained and deal-driven — will defect the moment a cheaper option appears.",
+            skeptic:        "Low urgency, high risk aversion — needs strong proof before committing.",
+          };
           return (
             <div key={seg} className="space-y-1">
               <div className="flex items-center justify-between">
-                <span className={`text-[10px] font-mono ${colors[seg]}`}>{labels[seg]}</span>
+                <div className="flex items-center gap-1.5">
+                  <span className={`text-[10px] font-mono ${colors[seg]}`}>{labels[seg]}</span>
+                  <button
+                    onMouseEnter={() => setSegHintKey(seg)}
+                    onMouseLeave={() => setSegHintKey(null)}
+                    className="text-slate-600 hover:text-slate-400 transition-colors"
+                  >
+                    <Info className="w-2.5 h-2.5" />
+                  </button>
+                </div>
                 <span className="text-[10px] font-mono text-slate-400">{pct}%</span>
               </div>
+              {segHintKey === seg && (
+                <p className="text-[9px] font-mono text-slate-500 italic leading-relaxed px-1">
+                  {hints[seg]}
+                </p>
+              )}
               <Slider
                 min={0} max={1} step={0.05}
                 value={[val]}

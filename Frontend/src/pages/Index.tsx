@@ -2,7 +2,7 @@ import { useState } from "react";
 import axios from "axios";
 import { ResearchTrace } from "@/components/dashboard/ResearchTrace";
 import { ScenarioComparison } from "@/components/dashboard/ScenarioComparison";
-import { Activity, Clock, XCircle, Beaker, Zap, TrendingUp, Users, Brain, DollarSign, BookmarkPlus, BookmarkCheck, BarChart2, FlaskConical, Search } from "lucide-react";
+import { Activity, Clock, XCircle, Beaker, Zap, TrendingUp, Users, Brain, DollarSign, BookmarkPlus, BookmarkCheck, BarChart2, FlaskConical, Search, Info } from "lucide-react";
 import { ControlPanel } from "@/components/dashboard/ControlPanel";
 import { KPICard } from "@/components/dashboard/KPICard";
 import { InsightEngine } from "@/components/dashboard/InsightEngine";
@@ -14,6 +14,7 @@ import { SkeletonChart } from "@/components/dashboard/SkeletonChart";
 import { ElasticityChart } from "@/components/dashboard/ElasticityChart";
 import { MarketTopology } from "@/components/dashboard/MarketTopology";
 import { MLInsightsPanel } from "@/components/dashboard/MLInsightsPanel";
+import { DecisionExplainer } from "@/components/dashboard/DecisionExplainer";
 import type {
   SimulationPayload,
   SimulationResponse,
@@ -24,6 +25,7 @@ import type {
   OptimizationResponse,
   SegmentStats,
   ProjectedNumbers,
+  DecisionDrivers,
 } from "@/types/simulation";
 import { parsePercentage } from "@/types/simulation";
 
@@ -56,6 +58,7 @@ export default function Index() {
   const [optimization, setOptimization] = useState<OptimizationResponse | null>(null);
   const [engineMode, setEngineMode]     = useState<"ml" | "rule_based" | null>(null);
   const [projected, setProjected]       = useState<ProjectedNumbers | null>(null);
+  const [decisionDrivers, setDecisionDrivers] = useState<DecisionDrivers | null>(null);
   const [savedScenario, setSavedScenario] = useState<{
     label: string;
     kpis: ParsedKPIs;
@@ -74,6 +77,7 @@ export default function Index() {
   });
 
   const [isFetchingMarket, setIsFetchingMarket] = useState(false);
+  const [mcHint, setMcHint] = useState(false);
   const [competitorsFound, setCompetitorsFound] = useState<any[]>([]);
 
   const handleLiveUpdate = (updates: Partial<SimulationPayload>) => {
@@ -102,6 +106,7 @@ export default function Index() {
       setSegBreakdown(data.segment_breakdown ?? null);
       setEngineMode(data.engine_mode ?? null);
       setProjected(data.projected ?? null);
+      setDecisionDrivers(data.decision_drivers ?? null);
       setDecisions(
         data.logs.map((log) => ({
           ...log,
@@ -271,7 +276,19 @@ export default function Index() {
                     <h3 className="text-slate-300 font-mono text-sm uppercase tracking-wider">
                       Monte Carlo Analysis — 50 Market Shocks
                     </h3>
+                    <button
+                      onMouseEnter={() => setMcHint(true)}
+                      onMouseLeave={() => setMcHint(false)}
+                      className="text-slate-600 hover:text-slate-400 transition-colors ml-1"
+                    >
+                      <Info className="w-3 h-3" />
+                    </button>
                   </div>
+                  {mcHint && (
+                    <p className="text-[10px] font-mono text-slate-500 italic leading-relaxed mb-3 px-1">
+                      Runs the simulation 50 times with small random shocks to customer urgency, simulating real-world market unpredictability. The result is a statistically robust conversion range rather than a single fragile point estimate.
+                    </p>
+                  )}
                   <div className="grid grid-cols-2 gap-4">
                     <div className="bg-slate-800 p-3 rounded border border-slate-700">
                       <p className="text-xs text-slate-400 font-mono mb-1">Mean Conversion</p>
@@ -384,6 +401,7 @@ export default function Index() {
               <ResearchTrace isFetching={isFetchingMarket} productName="" />
               <CompetitorInsight competitors={competitorsFound} onClose={() => setCompetitorsFound([])} />
               <InsightEngine kpis={kpis} />
+              <DecisionExplainer drivers={decisionDrivers} engineMode={engineMode} />
               <MLInsightsPanel engineMode={engineMode} />
               <DecisionTable decisions={decisions} />
             </>

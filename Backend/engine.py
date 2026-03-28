@@ -88,6 +88,37 @@ class GhostEngine:
 
         return action, round(probability, 4)
 
+    def explain_contributions(
+        self,
+        agent: dict,
+        p_price: float, p_value: float,
+        c_price: float, c_strength: float,
+        stage: str = "pre_launch",
+    ) -> dict[str, float]:
+        """Signed contribution of each factor to the decision z-score (positive = pushes toward BUY)."""
+        T   = STAGE_TRUST.get(stage, 0.30)
+        V   = float(p_value)
+        P_B = p_price / agent["budget"]
+        C_B = c_price / agent["budget"]
+        U   = float(agent["urgency"])
+        R   = float(agent["risk_tolerance"])
+        CS  = float(c_strength)
+
+        c_quality_adv = max(0.0, CS - V)
+        c_price_adv   = max(0.0, P_B - C_B) * CS
+        C             = c_quality_adv + c_price_adv
+        pv_penalty    = P_B * (1.0 - V)
+
+        return {
+            "perceived_value":      round(ALPHA  * V,              4),
+            "price_stress":         round(-BETA  * P_B,            4),
+            "urgency_lift":         round(GAMMA  * U,              4),
+            "risk_trust_drag":      round(-DELTA * R * (1.0 - T),  4),
+            "competitor_pull":      round(-MU    * C,              4),
+            "price_value_mismatch": round(-ETA   * pv_penalty,     4),
+            "market_friction":      round(-FRICTION,               4),
+        }
+
 
 class GhostMLEngine(GhostEngine):
     """
@@ -152,10 +183,10 @@ class GhostMLEngine(GhostEngine):
         p_price: float, p_value: float,
         c_price: float, c_strength: float,
         stage: str = "pre_launch",
-    ) -> list[tuple[str, float, dict]]:
+    ) -> list[tuple[str, float, dict, dict]]:
         """
         Vectorized prediction for the full crowd.
-        Returns list of (action, buy_prob, {REJECT, DELAY, BUY probabilities}).
+        Returns list of (action, buy_prob, {REJECT, DELAY, BUY probabilities}, feature_contributions).
         """
         if not self.ml_available:
             results = []
@@ -163,7 +194,10 @@ class GhostMLEngine(GhostEngine):
                 action, prob = self.calculate_decision(
                     agent, p_price, p_value, c_price, c_strength, stage
                 )
-                results.append((action, prob, {"REJECT": 0.0, "DELAY": 0.0, "BUY": prob}))
+                contribs = self.explain_contributions(
+                    agent, p_price, p_value, c_price, c_strength, stage
+                )
+                results.append((action, prob, {"REJECT": 0.0, "DELAY": 0.0, "BUY": prob}, contribs))
             return results
 
         X       = self._build_feature_matrix(agents, p_price, p_value, c_price, c_strength, stage)
@@ -171,18 +205,23 @@ class GhostMLEngine(GhostEngine):
         probs   = self._model.predict_proba(X_sc)   # (N, 3)
         preds   = self._model.predict(X_sc)          # (N,)
 
+        # BUY is class index 2; contributions = coef_BUY × scaled_feature_value
+        buy_coefs      = self._model.coef_[2]        # shape (9,)
+        contrib_matrix = X_sc * buy_coefs            # (N, 9)
+
         results = []
-        for pred, prob_row in zip(preds, probs):
-            # Hard budget gate — override ML if truly unaffordable
-            action = CLASS_NAMES[int(pred)]
+        for i, (pred, prob_row) in enumerate(zip(preds, probs)):
+            action   = CLASS_NAMES[int(pred)]
+            contribs = {feat: round(float(c), 4) for feat, c in zip(FEATURE_NAMES, contrib_matrix[i])}
             results.append((
                 action,
-                round(float(prob_row[2]), 4),   # BUY probability as the main "probability"
+                round(float(prob_row[2]), 4),
                 {
                     "REJECT": round(float(prob_row[0]), 3),
                     "DELAY":  round(float(prob_row[1]), 3),
                     "BUY":    round(float(prob_row[2]), 3),
                 },
+                contribs,
             ))
         return results
 

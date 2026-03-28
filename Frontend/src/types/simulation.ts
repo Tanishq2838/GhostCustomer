@@ -113,6 +113,14 @@ export interface AgentDecision {
   probability: number;
   action: "buy" | "delay" | "reject";
   ml_probabilities?: MLProbabilities | null;
+  feature_contributions?: Record<string, number> | null;
+}
+
+export interface DecisionDrivers {
+  buy: Record<string, number>;
+  reject: Record<string, number>;
+  n_buy: number;
+  n_reject: number;
 }
 
 export interface SegmentStats {
@@ -149,6 +157,7 @@ export interface SimulationResponse {
   logs: AgentDecision[];
   engine_mode: "ml" | "rule_based";
   projected?: ProjectedNumbers;
+  decision_drivers?: DecisionDrivers;
 }
 
 export interface ParsedKPIs {

@@ -10,7 +10,7 @@ import os
 
 load_dotenv()
 
-app = FastAPI(title="Ghost Customer: Decision Lab")
+app = FastAPI(title="Ghost Customer: Decision Lab")  # v2.1 — explainability
 
 app.add_middleware(
     CORSMiddleware,
@@ -113,7 +113,7 @@ async def simulate(req: MarketSimRequest):
             crowd, req.product_price, req.product_value,
             req.comp_price, req.comp_strength, req.product_stage,
         )
-        for i, (agent, (action, prob, ml_probs)) in enumerate(zip(crowd, ml_results)):
+        for i, (agent, (action, prob, ml_probs, contributions)) in enumerate(zip(crowd, ml_results)):
             # Enforce hard budget gate even in ML mode
             if req.product_price > agent["budget"] and req.comp_price > agent["budget"]:
                 action, prob = "REJECT", 0.05
@@ -130,14 +130,15 @@ async def simulate(req: MarketSimRequest):
             seg_stats[seg][action.lower()] += 1
 
             results.append({
-                "agent_id":        i + 1,
-                "segment":         seg,
-                "budget":          agent["budget"],
-                "urgency":         agent["urgency"],
-                "risk_tolerance":  agent["risk_tolerance"],
-                "probability":     prob,
-                "action":          action,
-                "ml_probabilities": ml_probs,
+                "agent_id":             i + 1,
+                "segment":              seg,
+                "budget":               agent["budget"],
+                "urgency":              agent["urgency"],
+                "risk_tolerance":       agent["risk_tolerance"],
+                "probability":          prob,
+                "action":               action,
+                "ml_probabilities":     ml_probs,
+                "feature_contributions": contributions,
             })
             prob_curve.append({"agent": i + 1, "probability": prob})
 
@@ -145,6 +146,10 @@ async def simulate(req: MarketSimRequest):
         # Rule-based fallback
         for i, agent in enumerate(crowd):
             action, prob = rule_engine.calculate_decision(
+                agent, req.product_price, req.product_value,
+                req.comp_price, req.comp_strength, req.product_stage,
+            )
+            contributions = rule_engine.explain_contributions(
                 agent, req.product_price, req.product_value,
                 req.comp_price, req.comp_strength, req.product_stage,
             )
@@ -159,14 +164,15 @@ async def simulate(req: MarketSimRequest):
             seg_stats[seg][action.lower()] += 1
 
             results.append({
-                "agent_id":        i + 1,
-                "segment":         seg,
-                "budget":          agent["budget"],
-                "urgency":         agent["urgency"],
-                "risk_tolerance":  agent["risk_tolerance"],
-                "probability":     prob,
-                "action":          action,
-                "ml_probabilities": None,
+                "agent_id":             i + 1,
+                "segment":              seg,
+                "budget":               agent["budget"],
+                "urgency":              agent["urgency"],
+                "risk_tolerance":       agent["risk_tolerance"],
+                "probability":          prob,
+                "action":               action,
+                "ml_probabilities":     None,
+                "feature_contributions": contributions,
             })
             prob_curve.append({"agent": i + 1, "probability": prob})
 
@@ -174,6 +180,22 @@ async def simulate(req: MarketSimRequest):
         "conversion_rate": f"{(buys    / req.agent_count) * 100:.1f}%",
         "delay_rate":      f"{(delays  / req.agent_count) * 100:.1f}%",
         "rejection_rate":  f"{(rejects / req.agent_count) * 100:.1f}%",
+    }
+
+    # ── Decision drivers: mean feature contributions for BUY vs REJECT groups ──
+    def _avg_contributions(group: list[dict]) -> dict:
+        if not group:
+            return {}
+        keys = group[0].keys()
+        return {k: round(sum(c[k] for c in group) / len(group), 4) for k in keys}
+
+    buy_contribs = [r["feature_contributions"] for r in results if r["action"] == "BUY"   and r.get("feature_contributions")]
+    rej_contribs = [r["feature_contributions"] for r in results if r["action"] == "REJECT" and r.get("feature_contributions")]
+    decision_drivers = {
+        "buy":      _avg_contributions(buy_contribs),
+        "reject":   _avg_contributions(rej_contribs),
+        "n_buy":    len(buy_contribs),
+        "n_reject": len(rej_contribs),
     }
 
     engine_for_mc = rule_engine   # always use rule-based for Monte Carlo (speed)
@@ -208,8 +230,9 @@ async def simulate(req: MarketSimRequest):
             "mean_conversion":     mean_conv,
             "confidence_interval": conf_interval,
         },
-        "engine_mode": "ml" if (req.use_ml and ml_engine.ml_available) else "rule_based",
-        "projected":   projected,
+        "engine_mode":      "ml" if (req.use_ml and ml_engine.ml_available) else "rule_based",
+        "projected":        projected,
+        "decision_drivers": decision_drivers,
     }
 
 
