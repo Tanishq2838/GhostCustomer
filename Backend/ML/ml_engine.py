@@ -18,7 +18,7 @@ FEATURE_NAMES = [
     "price_to_budget",
     "value",
     "urgency",
-    "risk_tolerance",
+    "risk_aversion",
     "trust",
     "comp_quality_adv",
     "comp_price_adv",
@@ -27,18 +27,43 @@ FEATURE_NAMES = [
 ]
 
 def generate_data(num_samples=5000):
-    """Generates synthetic dataset using the validated behavioral model."""
+    """Generates synthetic dataset using the validated behavioral model.
+
+    Budgets are now generated relative to market_price (avg of product &
+    competitor price) using segment multipliers — matching the runtime
+    generator.py behaviour so the ML model's price_to_budget feature
+    distribution stays consistent across all price points.
+
+    Segment budget multipliers (weighted population mix):
+        early_adopter  (20%) : mul=1.8, std_ratio=0.30
+        premium_seeker (15%) : mul=2.5, std_ratio=0.40
+        price_hunter   (35%) : mul=0.8, std_ratio=0.20
+        skeptic        (30%) : mul=1.3, std_ratio=0.30
+    """
     np.random.seed(42)
-    
+
     # 1. Generate base parameters
-    agent_budget = np.clip(np.random.normal(1200, 500, num_samples), 200, 5000)
-    product_price = np.random.uniform(100, 3000, num_samples)
-    value = np.random.uniform(0, 1, num_samples)
-    urgency = np.random.uniform(0, 1, num_samples)
-    risk_tolerance = np.random.uniform(0, 1, num_samples)
-    comp_strength = np.random.uniform(0.1, 1.0, num_samples)
-    comp_price = np.random.uniform(100, 3000, num_samples)
-    
+    # Sample prices over a wide range so the model generalises across markets
+    product_price = np.random.uniform(100, 50000, num_samples)
+    comp_price    = np.random.uniform(100, 50000, num_samples)
+    market_price  = (product_price + comp_price) / 2
+
+    # Sample a budget multiplier per agent from the segment population mix
+    MUL_OPTIONS     = [1.8,  2.5,   0.8,   1.3]
+    STD_OPTIONS     = [0.30, 0.40,  0.20,  0.30]
+    SEG_WEIGHTS     = [0.20, 0.15,  0.35,  0.30]
+    seg_indices     = np.random.choice(len(MUL_OPTIONS), size=num_samples, p=SEG_WEIGHTS)
+    mul             = np.array([MUL_OPTIONS[i] for i in seg_indices])
+    std_ratio       = np.array([STD_OPTIONS[i] for i in seg_indices])
+    budget_mean     = mul      * market_price
+    budget_std      = std_ratio * market_price
+    agent_budget    = np.maximum(1.0, np.random.normal(budget_mean, budget_std))
+
+    value          = np.random.uniform(0, 1, num_samples)
+    urgency        = np.random.uniform(0, 1, num_samples)
+    risk_aversion  = np.random.uniform(0, 1, num_samples)
+    comp_strength  = np.random.uniform(0.1, 1.0, num_samples)
+
     trust_levels = [0.10, 0.30, 0.60, 0.85]
     trust = np.random.choice(trust_levels, num_samples)
     
@@ -50,14 +75,14 @@ def generate_data(num_samples=5000):
     comp_price_adv = np.maximum(0, price_to_budget - comp_price_to_budget) * comp_strength
     
     pv_interaction = price_to_budget * (1 - value)
-    risk_trust_penalty = risk_tolerance * (1 - trust)
+    risk_trust_penalty = risk_aversion * (1 - trust)
     
     # Create DataFrame to preserve feature order
     df = pd.DataFrame({
         "price_to_budget": price_to_budget,
         "value": value,
         "urgency": urgency,
-        "risk_tolerance": risk_tolerance,
+        "risk_aversion": risk_aversion,
         "trust": trust,
         "comp_quality_adv": comp_quality_adv,
         "comp_price_adv": comp_price_adv,
@@ -166,7 +191,7 @@ def predict_decision(
     product_value: float,
     agent_budget: float,
     agent_urgency: float,
-    agent_risk_tolerance: float,
+    agent_risk_aversion: float,
     comp_price: float,
     comp_strength: float,
     trust: float  # 0.10/0.30/0.60/0.85 based on stage
@@ -182,13 +207,13 @@ def predict_decision(
     comp_price_adv = max(0.0, price_to_budget - comp_price_to_budget) * comp_strength
     
     pv_interaction = price_to_budget * (1 - product_value)
-    risk_trust_penalty = agent_risk_tolerance * (1 - trust)
+    risk_trust_penalty = agent_risk_aversion * (1 - trust)
     
     features = pd.DataFrame([{
         "price_to_budget": price_to_budget,
         "value": product_value,
         "urgency": agent_urgency,
-        "risk_tolerance": agent_risk_tolerance,
+        "risk_aversion": agent_risk_aversion,
         "trust": trust,
         "comp_quality_adv": comp_quality_adv,
         "comp_price_adv": comp_price_adv,
@@ -227,7 +252,7 @@ class PredictionRequest(BaseModel):
     product_value: float
     agent_budget: float
     agent_urgency: float
-    agent_risk_tolerance: float
+    agent_risk_aversion: float
     comp_price: float
     comp_strength: float
     product_stage: str
@@ -249,7 +274,7 @@ def api_predict_decision(req: PredictionRequest):
         product_value=req.product_value,
         agent_budget=req.agent_budget,
         agent_urgency=req.agent_urgency,
-        agent_risk_tolerance=req.agent_risk_tolerance,
+        agent_risk_aversion=req.agent_risk_aversion,
         comp_price=req.comp_price,
         comp_strength=req.comp_strength,
         trust=trust_val

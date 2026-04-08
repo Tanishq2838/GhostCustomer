@@ -109,7 +109,7 @@ export interface AgentDecision {
   segment: AgentSegment;
   budget: number;
   urgency: number;
-  risk_tolerance: number;
+  risk_aversion: number;
   probability: number;
   action: "buy" | "delay" | "reject";
   ml_probabilities?: MLProbabilities | null;

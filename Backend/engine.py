@@ -25,7 +25,7 @@ DELAY_THRESHOLD = 0.38
 
 CLASS_NAMES = {0: "REJECT", 1: "DELAY", 2: "BUY"}
 FEATURE_NAMES = [
-    "price_to_budget", "value", "urgency", "risk_tolerance", "trust",
+    "price_to_budget", "value", "urgency", "risk_aversion", "trust",
     "comp_quality_adv", "comp_price_adv", "pv_interaction", "risk_trust_penalty",
 ]
 
@@ -58,7 +58,7 @@ class GhostEngine:
         P_B = p_price / agent["budget"]
         C_B = c_price / agent["budget"]
         U   = float(agent["urgency"])
-        R   = float(agent["risk_tolerance"])
+        R   = float(agent["risk_aversion"])
         CS  = float(c_strength)
         T   = STAGE_TRUST.get(stage, 0.30)
 
@@ -101,7 +101,7 @@ class GhostEngine:
         P_B = p_price / agent["budget"]
         C_B = c_price / agent["budget"]
         U   = float(agent["urgency"])
-        R   = float(agent["risk_tolerance"])
+        R   = float(agent["risk_aversion"])
         CS  = float(c_strength)
 
         c_quality_adv = max(0.0, CS - V)
@@ -162,12 +162,12 @@ class GhostMLEngine(GhostEngine):
             budget = float(agent["budget"])
             P_B    = p_price / budget
             C_B    = c_price / budget
-            R      = float(agent["risk_tolerance"])
+            R      = float(agent["risk_aversion"])
             rows.append({
                 "price_to_budget":    P_B,
                 "value":              V,
                 "urgency":            float(agent["urgency"]),
-                "risk_tolerance":     R,
+                "risk_aversion":      R,
                 "trust":              T,
                 "comp_quality_adv":   max(0.0, CS - V),
                 "comp_price_adv":     max(0.0, P_B - C_B) * CS,

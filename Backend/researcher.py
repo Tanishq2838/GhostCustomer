@@ -200,16 +200,16 @@ class AgentResearcher:
             c["strength"] = self._clean_float(c.get("strength"), 0.5)
         return data
 
-    def _forced_synthesis(self, product_name: str, conversation: list) -> dict:
+    def _forced_synthesis(self, product_name: str, conversation: list, country: str = "India") -> dict:
         """Final fallback: ask Gemini to synthesise whatever was gathered."""
         self._log("FALLBACK", "Forcing final synthesis from gathered data")
         prompt = (
-            f'Based on your research for "{product_name}", output ONLY a JSON object:\n'
+            f'Based on your research for "{product_name}" in the {country} market, output ONLY a JSON object:\n'
             '{"competitors":[{"name":"...","price":number,"strength":0.0-1.0,"market_position":"..."}],'
             '"comp_price":number,"comp_strength":number,"market_summary":"...","pricing_insight":"..."}'
         )
         try:
-            for model in ["gemini-2.0-flash", "gemini-1.5-flash"]:
+            for model in PREFERRED_MODELS:
                 try:
                     r = self.client.models.generate_content(
                         model=model,
@@ -225,18 +225,31 @@ class AgentResearcher:
         return {"comp_price": 500.0, "comp_strength": 0.5, "competitors": [],
                 "market_summary": "", "pricing_insight": ""}
 
-    def run(self, product_name: str) -> dict:
+    def run(self, product_name: str, country: str = "India") -> dict:
         self.trace = []
-        self._log("INIT",   f"Agent initialised for: {product_name}")
-        self._log("PLAN",   "Building multi-step research strategy")
+        self._log("INIT", f"Agent initialised for: {product_name} · Market: {country}")
+        self._log("PLAN", f"Building research strategy for {country} market")
 
-        SYSTEM = f"""You are a Market Intelligence Agent. Research competitive pricing for "{product_name}" in the Indian market.
+        # Currency label and price context per country
+        COUNTRY_CONTEXT = {
+            "India":   {"currency": "INR (₹)", "price_note": "prices in INR",        "market_note": "Indian market — focus on Amazon.in, Flipkart, local brands"},
+            "USA":     {"currency": "USD ($)",  "price_note": "prices in USD",        "market_note": "US market — focus on Amazon.com, major US retailers"},
+            "Germany": {"currency": "EUR (€)",  "price_note": "prices in EUR",        "market_note": "German market — focus on Amazon.de, Otto, MediaMarkt"},
+            "China":   {"currency": "CNY (¥)",  "price_note": "prices in CNY (Yuan)", "market_note": "Chinese market — focus on Tmall, JD.com, Taobao"},
+            "Japan":   {"currency": "JPY (¥)",  "price_note": "prices in JPY (Yen)",  "market_note": "Japanese market — focus on Amazon.co.jp, Rakuten, Yahoo Japan"},
+            "UK":      {"currency": "GBP (£)",  "price_note": "prices in GBP",        "market_note": "UK market — focus on Amazon.co.uk, Argos, John Lewis"},
+        }
+        ctx = COUNTRY_CONTEXT.get(country, COUNTRY_CONTEXT["India"])
+
+        SYSTEM = f"""You are a Market Intelligence Agent. Research competitive pricing for "{product_name}" in the {country} market.
+
+{ctx['market_note']}.
 
 Use SEARCH actions to gather data. After 2-4 searches call DONE.
 
 ALWAYS respond in this EXACT format:
 THOUGHT: <your reasoning>
-ACTION: SEARCH: <specific search query>
+ACTION: SEARCH: <specific search query including country/region context>
 
 When ready to finalise:
 THOUGHT: <synthesis reasoning>
@@ -245,29 +258,36 @@ ACTION: DONE: <JSON>
 Required JSON:
 {{
   "competitors": [
-    {{"name":"Brand","price":499,"strength":0.7,"market_position":"brief note"}},
+    {{"name":"Brand","price":499,"strength":0.7,"market_position":"brief note about their position in {country}"}},
     {{"name":"Brand","price":999,"strength":0.85,"market_position":"brief note"}},
     {{"name":"Brand","price":699,"strength":0.6,"market_position":"brief note"}}
   ],
   "comp_price": 732,
   "comp_strength": 0.72,
-  "market_summary": "2-3 sentence overview of the market landscape.",
-  "pricing_insight": "Key pricing recommendation for a new entrant."
+  "market_summary": "2-3 sentence overview of the {country} market landscape for this product.",
+  "pricing_insight": "Key pricing recommendation for a new entrant in {country}."
 }}
 
-Rules: max {self.MAX_SEARCHES} searches · prices in INR (numbers only) · strength 0.1-1.0"""
+Rules: max {self.MAX_SEARCHES} searches · {ctx['price_note']} (numbers only) · strength 0.1-1.0"""
 
         conversation = [{"role":"user","parts":[{"text": SYSTEM + "\n\nBegin research now."}]}]
         search_count = 0
 
         for iteration in range(self.MAX_ITERATIONS):
-            try:
-                model = "gemini-2.0-flash" if iteration < 6 else "gemini-1.5-flash"
-                resp  = self.client.models.generate_content(model=model, contents=conversation)
-                text  = resp.text.strip()
-            except Exception as e:
-                self._log("ERROR", f"LLM call failed: {e}")
+            resp = None
+            last_err = None
+            for model in PREFERRED_MODELS:
+                try:
+                    resp = self.client.models.generate_content(model=model, contents=conversation)
+                    if resp and resp.text:
+                        break
+                except Exception as e:
+                    last_err = e
+                    continue
+            if not resp or not resp.text:
+                self._log("ERROR", f"LLM call failed: {last_err}")
                 break
+            text = resp.text.strip()
 
             thought = self._extract_thought(text)
             if thought:
@@ -296,7 +316,7 @@ Rules: max {self.MAX_SEARCHES} searches · prices in INR (numbers only) · stren
                 self._log("SYNTHESIZE", "Synthesising all gathered intelligence")
                 data = self._parse_final_json(action_value)
                 if not data:
-                    data = self._forced_synthesis(product_name, conversation)
+                    data = self._forced_synthesis(product_name, conversation, country)
                 n   = len(data.get("competitors", []))
                 avg = data.get("comp_price", 0)
                 self._log("COMPLETE", f"{n} competitors identified · avg price ₹{avg:.0f}")

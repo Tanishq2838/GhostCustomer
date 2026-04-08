@@ -100,7 +100,8 @@ class MarketSimRequest(BaseModel):
 
 @app.post("/simulate-market")
 async def simulate(req: MarketSimRequest):
-    crowd  = generate_synthetic_crowd(req.agent_count, custom_weights=req.segment_weights or None)
+    market_price = (req.product_price + req.comp_price) / 2
+    crowd  = generate_synthetic_crowd(req.agent_count, custom_weights=req.segment_weights or None, market_price=market_price)
     results = []
     buys = delays = rejects = 0
     prob_curve = []
@@ -134,7 +135,7 @@ async def simulate(req: MarketSimRequest):
                 "segment":              seg,
                 "budget":               agent["budget"],
                 "urgency":              agent["urgency"],
-                "risk_tolerance":       agent["risk_tolerance"],
+                "risk_aversion":        agent["risk_aversion"],
                 "probability":          prob,
                 "action":               action,
                 "ml_probabilities":     ml_probs,
@@ -168,7 +169,7 @@ async def simulate(req: MarketSimRequest):
                 "segment":              seg,
                 "budget":               agent["budget"],
                 "urgency":              agent["urgency"],
-                "risk_tolerance":       agent["risk_tolerance"],
+                "risk_aversion":        agent["risk_aversion"],
                 "probability":          prob,
                 "action":               action,
                 "ml_probabilities":     None,
@@ -254,11 +255,12 @@ agent_researcher = AgentResearcher()
 
 class ResearchRequest(BaseModel):
     product_name: str
+    country: str = "India"
 
 @app.post("/fetch-market-data")
 async def fetch_market_data(req: ResearchRequest):
     try:
-        data = agent_researcher.run(req.product_name)
+        data = agent_researcher.run(req.product_name, req.country)
         data["success"] = True
         return data
     except Exception as e:
@@ -278,8 +280,10 @@ async def fetch_market_data(req: ResearchRequest):
 @app.post("/calculate-elasticity")
 async def calculate_elasticity(req: MarketSimRequest):
     base_price  = req.product_price
-    test_prices = np.linspace(base_price * 0.5, base_price * 2.0, 15)
-    crowd_base  = generate_synthetic_crowd(req.agent_count, custom_weights=req.segment_weights or None)
+    lo_price    = max(100.0, base_price * 0.3)
+    hi_price    = base_price * 2.5
+    test_prices = np.linspace(lo_price, hi_price, 15)
+    crowd_base  = generate_synthetic_crowd(req.agent_count, custom_weights=req.segment_weights or None, market_price=(req.product_price + req.comp_price) / 2)
     data        = []
 
     for p in test_prices:
@@ -307,10 +311,10 @@ GROSS_MARGIN = 0.40
 
 @app.post("/optimize-price")
 async def optimize_price(req: MarketSimRequest):
-    lo           = max(100.0, req.comp_price * 0.4)
-    hi           = req.comp_price * 2.5
+    lo           = max(100.0, min(req.comp_price * 0.4, req.product_price * 0.4))
+    hi           = max(req.comp_price * 2.5, req.product_price * 1.5)
     price_points = np.linspace(lo, hi, 30)
-    crowd_base   = generate_synthetic_crowd(req.agent_count, custom_weights=req.segment_weights or None)
+    crowd_base   = generate_synthetic_crowd(req.agent_count, custom_weights=req.segment_weights or None, market_price=(req.product_price + req.comp_price) / 2)
     curve        = []
 
     for p in price_points:
